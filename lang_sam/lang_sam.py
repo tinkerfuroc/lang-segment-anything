@@ -49,9 +49,8 @@ def transform_image(image) -> torch.Tensor:
 
 class LangSAM():
 
-    def __init__(self, sam_type="vit_h", ckpt_path=None, return_prompts: bool = False):
+    def __init__(self, sam_type="vit_h", ckpt_path=None):
         self.sam_type = sam_type
-        self.return_prompts = return_prompts
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.build_groundingdino()
         self.build_sam(ckpt_path)
@@ -95,7 +94,6 @@ class LangSAM():
                                          caption=text_prompt,
                                          box_threshold=box_threshold,
                                          text_threshold=text_threshold,
-                                         remove_combined=self.return_prompts,
                                          device=self.device)
         W, H = image_pil.size
         boxes = box_ops.box_cxcywh_to_xyxy(boxes) * torch.Tensor([W, H, W, H])
