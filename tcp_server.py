@@ -7,6 +7,9 @@ from PIL import Image
 from lang_sam import LangSAM
 import numpy as np
 import socket
+import gc
+import torch
+import cv2
 
 
 def send_arr_to_tcp(arr, conn):
@@ -51,12 +54,13 @@ def recv_str_from_tcp(conn):
 if __name__ == '__main__':
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(('127.0.0.1', 12345))
-        model = LangSAM()
         s.listen()
+        print('initialized.')
         while True:
             conn, addr = s.accept()
             with conn:
                 print(f"Connected by {addr}")
+                model = LangSAM()
                 img = recv_arr_from_tcp(conn)
                 text_prompt = recv_str_from_tcp(conn)
                 if len(text_prompt) == 0:
@@ -74,3 +78,8 @@ if __name__ == '__main__':
                     masks = masks.detach().cpu().numpy()
                 print('all ok')
                 send_arr_to_tcp(masks.astype(np.uint8), conn)
+                # model.cpu()
+                del model
+                gc.collect()
+                torch.cuda.empty_cache()
+                print('model deleted.')
