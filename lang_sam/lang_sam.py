@@ -1,4 +1,5 @@
 import os
+import shutil
 
 import groundingdino.datasets.transforms as T
 import numpy as np
@@ -11,18 +12,26 @@ from groundingdino.util.utils import clean_state_dict
 from huggingface_hub import hf_hub_download
 from segment_anything import sam_model_registry
 from segment_anything import SamPredictor
+from mobile_sam import sam_model_registry as sam_moblie_model_registry
 
 SAM_MODELS = {
     "vit_h": "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth",
     "vit_l": "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_l_0b3195.pth",
-    "vit_b": "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth"
+    "vit_b": "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth",
+    "vit_t": "./mobile_sam.pt"
 }
 
 CACHE_PATH = os.environ.get("TORCH_HOME", os.path.expanduser("~/.cache/torch/hub/checkpoints"))
 
 
 def load_model_hf(repo_id, filename, ckpt_config_filename, device='cpu'):
-    cache_config_file = hf_hub_download(repo_id=repo_id, filename=ckpt_config_filename)
+    if os.path.exists(ckpt_config_filename):
+        cache_config_file = ckpt_config_filename
+    else:
+        cache_config_file = hf_hub_download(repo_id=repo_id, filename=ckpt_config_filename)
+        shutil.copyfile(cache_config_file, ckpt_config_filename)
+        cache_config_file = ckpt_config_filename
+    # print(cache_config_file)
 
     args = SLConfig.fromfile(cache_config_file)
     model = build_model(args)
@@ -62,9 +71,18 @@ class LangSAM():
                 self.sam_type = "vit_h"
             checkpoint_url = SAM_MODELS[self.sam_type]
             try:
-                sam = sam_model_registry[self.sam_type]()
-                state_dict = torch.hub.load_state_dict_from_url(checkpoint_url)
-                sam.load_state_dict(state_dict, strict=True)
+                # sam = sam_model_registry[self.sam_type]()
+                # state_dict = torch.hub.load_state_dict_from_url(checkpoint_url)
+                # sam.load_state_dict(state_dict, strict=True)
+                if self.sam_type=='vit_t':
+                    pt_url = os.path.dirname(os.path.abspath(__file__))+'/'+checkpoint_url
+                    print(pt_url)
+                    sam = sam_moblie_model_registry[self.sam_type](pt_url)
+                    print("         use mobile sam!")
+                else:
+                    sam = sam_model_registry[self.sam_type]()
+                    state_dict = torch.hub.load_state_dict_from_url(checkpoint_url)
+                    sam.load_state_dict(state_dict, strict=True)
             except:
                 raise ValueError(f"Problem loading SAM please make sure you have the right model type: {self.sam_type} \
                     and a working checkpoint: {checkpoint_url}. Recommend deleting the checkpoint and \
@@ -73,7 +91,12 @@ class LangSAM():
             self.sam = SamPredictor(sam)
         else:
             try:
-                sam = sam_model_registry[self.sam_type](ckpt_path)
+                if self.sam_type=='vit_t':
+                    sam = sam_moblie_model_registry[self.sam_type](ckpt_path)
+                    print("         use mobile sam!")
+                else:
+                    sam = sam_model_registry[self.sam_type](ckpt_path)
+                # sam = sam_model_registry[self.sam_type](ckpt_path)
             except:
                 raise ValueError(f"Problem loading SAM. Your model type: {self.sam_type} \
                 should match your checkpoint path: {ckpt_path}. Recommend calling LangSAM \
@@ -119,3 +142,4 @@ class LangSAM():
             masks = self.predict_sam(image_pil, boxes)
             masks = masks.squeeze(1)
         return masks, boxes, phrases, logits
+    
