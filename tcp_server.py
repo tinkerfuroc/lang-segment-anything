@@ -86,8 +86,14 @@ if __name__ == '__main__':
                     print('type 1')
                 else:
                     masks = masks.detach().cpu().numpy()
+                print(phrases)
                 print('all ok')
                 send_arr_to_tcp(masks.astype(np.uint8), conn)
+                for i in range(masks.shape[0]):
+                    if i < len(phrases):
+                        send_str_to_tcp(phrases[i], conn)
+                    else:
+                        send_str_to_tcp('', conn)
                 # model.cpu()
                 # del model
                 # gc.collect()
