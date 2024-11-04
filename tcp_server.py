@@ -67,35 +67,40 @@ if __name__ == '__main__':
         print('initialized.')
         while True:
             conn, addr = s.accept()
-            with conn:
-                print(f"Connected by {addr}")
-                # model = LangSAM()
-                img = recv_arr_from_tcp(conn)
-                text_prompt = recv_str_from_tcp(conn)
-                if len(text_prompt) == 0:
-                    text_prompt = 'bottle, can'
-                pil_img = Image.fromarray(img, mode="RGB")
-                masks, boxes, phrases, logits = model.predict(pil_img, text_prompt)
-                print(masks.shape)
-                if len(masks.shape) == 2:
-                    masks = np.expand_dims(masks, axis=0)
-                    print('type 2', masks.shape)
-                elif len(masks.shape) == 1:
-                    # masks = np.zeros((1, img.shape[0], img.shape[1]))
-                    masks = np.zeros((0, img.shape[0], img.shape[1]))
-                    print('type 1')
-                else:
-                    masks = masks.detach().cpu().numpy()
-                print(phrases)
-                print('all ok')
-                send_arr_to_tcp(masks.astype(np.uint8), conn)
-                for i in range(masks.shape[0]):
-                    if i < len(phrases):
-                        send_str_to_tcp(phrases[i], conn)
+            try:
+                with conn:
+                    print(f"Connected by {addr}")
+                    # model = LangSAM()
+                    img = recv_arr_from_tcp(conn)
+                    text_prompt = recv_str_from_tcp(conn)
+                    if len(text_prompt) == 0:
+                        text_prompt = 'bottle, can'
+                    pil_img = Image.fromarray(img, mode="RGB")
+                    masks, boxes, phrases, logits = model.predict(pil_img, text_prompt)
+                    print(masks.shape)
+                    if len(masks.shape) == 2:
+                        masks = np.expand_dims(masks, axis=0)
+                        print('type 2', masks.shape)
+                    elif len(masks.shape) == 1:
+                        # masks = np.zeros((1, img.shape[0], img.shape[1]))
+                        masks = np.zeros((0, img.shape[0], img.shape[1]))
+                        print('type 1')
                     else:
-                        send_str_to_tcp('', conn)
-                # model.cpu()
-                # del model
-                # gc.collect()
-                # torch.cuda.empty_cache()
-                # print('model deleted.')
+                        masks = masks.detach().cpu().numpy()
+                    print(phrases)
+                    print('all ok')
+                    send_arr_to_tcp(masks.astype(np.uint8), conn)
+                    for i in range(masks.shape[0]):
+                        if i < len(phrases):
+                            send_str_to_tcp(phrases[i], conn)
+                        else:
+                            send_str_to_tcp('', conn)
+                    # model.cpu()
+                    # del model
+                    # gc.collect()
+                    # torch.cuda.empty_cache()
+                    # print('model deleted.')
+            except:
+                print('error occured')
+            conn.close()
+                
