@@ -18,26 +18,62 @@ SAM_MODELS = {
     "vit_h": "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth",
     "vit_l": "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_l_0b3195.pth",
     "vit_b": "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth",
-    "vit_t": "./mobile_sam.pt"
+    # "vit_t": os.path.join(os.path.dirname(os.path.abspath(__file__)), 'models', 'mobile_sam.pt')
+    # SAM will do the stuff above for you
+    "vit_t": './mobile_sam.pt'
 }
 
 CACHE_PATH = os.environ.get("TORCH_HOME", os.path.expanduser("~/.cache/torch/hub/checkpoints"))
 
 
-def load_model_hf(repo_id, filename, ckpt_config_filename, device='cpu'):
-    if os.path.exists(ckpt_config_filename):
-        cache_config_file = ckpt_config_filename
+def load_model_hf(repo_id, ckpt_filename, ckpt_config_filename, local_dir='models', use_local_files=True, device='cpu'):
+    local_ckpt_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), local_dir)
+    if not os.path.exists(local_ckpt_path):
+        os.mkdir(local_ckpt_path)
+
+    local_ckpt_filename = os.path.join(local_ckpt_path, ckpt_filename)
+    local_ckpt_config_filename = os.path.join(local_ckpt_path, ckpt_config_filename)
+    
+    if use_local_files:
+        if os.path.exists(local_ckpt_config_filename):
+            cache_config_file = local_ckpt_config_filename
+        else:
+            cache_config_file = hf_hub_download(repo_id=repo_id, filename=ckpt_config_filename)
+            shutil.copyfile(cache_config_file, local_ckpt_config_filename)
+            cache_config_file = local_ckpt_config_filename
     else:
         cache_config_file = hf_hub_download(repo_id=repo_id, filename=ckpt_config_filename)
-        shutil.copyfile(cache_config_file, ckpt_config_filename)
-        cache_config_file = ckpt_config_filename
-    # print(cache_config_file)
 
     args = SLConfig.fromfile(cache_config_file)
+    if use_local_files:
+        local_bert_filename = os.path.join(local_ckpt_path, args.text_encoder_type)
+
+        model_exists = os.path.exists(os.path.join(local_bert_filename, 'config.json'))
+        tokenizer_exists = os.path.exists(os.path.join(local_bert_filename, 'vocab.txt'))
+        if not model_exists or not tokenizer_exists:
+            # save to local folder
+            print(f'Saving {args.text_encoder_type} model and tokenizer to {local_bert_filename}...')
+            from transformers import AutoTokenizer, BertModel
+            model = BertModel.from_pretrained(args.text_encoder_type)
+            tokenizer = AutoTokenizer.from_pretrained(args.text_encoder_type)
+            model.save_pretrained(local_bert_filename)
+            tokenizer.save_pretrained(local_bert_filename)
+
+        args.text_encoder_type = local_bert_filename
+
     model = build_model(args)
     args.device = device
 
-    cache_file = hf_hub_download(repo_id=repo_id, filename=filename)
+    if use_local_files:
+        if os.path.exists(local_ckpt_filename):
+            cache_file = local_ckpt_filename
+        else:
+            cache_file = hf_hub_download(repo_id=repo_id, filename=ckpt_filename)
+            shutil.copyfile(cache_file, local_ckpt_filename)
+            cache_file = local_ckpt_filename
+    else:
+        cache_file = hf_hub_download(repo_id=repo_id, filename=ckpt_filename)
+    
     checkpoint = torch.load(cache_file, map_location='cpu')
     log = model.load_state_dict(clean_state_dict(checkpoint['model']), strict=False)
     print(f"Model loaded from {cache_file} \n => {log}")
@@ -74,7 +110,7 @@ class LangSAM():
                 # sam = sam_model_registry[self.sam_type]()
                 # state_dict = torch.hub.load_state_dict_from_url(checkpoint_url)
                 # sam.load_state_dict(state_dict, strict=True)
-                if self.sam_type=='vit_t':
+                if self.sam_type == 'vit_t':
                     pt_url = os.path.dirname(os.path.abspath(__file__))+'/'+checkpoint_url
                     print(pt_url)
                     sam = sam_moblie_model_registry[self.sam_type](pt_url)
@@ -108,6 +144,8 @@ class LangSAM():
         ckpt_repo_id = "ShilongLiu/GroundingDINO"
         ckpt_filename = "groundingdino_swinb_cogcoor.pth"
         ckpt_config_filename = "GroundingDINO_SwinB.cfg.py"
+
+        # offline config
         self.groundingdino = load_model_hf(ckpt_repo_id, ckpt_filename, ckpt_config_filename)
 
     def predict_dino(self, image_pil, text_prompt, box_threshold, text_threshold):
