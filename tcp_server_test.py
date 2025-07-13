@@ -49,7 +49,8 @@ def recv_str_from_tcp(conn):
 
 
 if __name__ == '__main__':
-    img = cv2.imread('../vision_test/chocolade/photo_2.jpg')
+    img = cv2.imread('../1.jpg')
+    # img = cv2.imread('../vision_test/chocolade/photo_2.jpg')
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as conn:
         conn.connect(('127.0.0.1', 12345))
         send_arr_to_tcp(img, conn)

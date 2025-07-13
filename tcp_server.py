@@ -88,7 +88,8 @@ if __name__ == '__main__':
                     else:
                         masks = masks.detach().cpu().numpy()
                     print(phrases)
-                    print('all ok')
+                    print('all ok, sending to tcp')
+
                     send_arr_to_tcp(masks.astype(np.uint8), conn)
                     for i in range(masks.shape[0]):
                         if i < len(phrases):
@@ -100,7 +101,7 @@ if __name__ == '__main__':
                     # gc.collect()
                     # torch.cuda.empty_cache()
                     # print('model deleted.')
-            except:
-                print('error occured')
+            except Exception as e:
+                print(f'error occured: {e}')
             conn.close()
                 
